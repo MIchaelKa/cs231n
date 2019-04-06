@@ -494,9 +494,25 @@ def conv_forward_naive(x, w, b, conv_param):
     stride = conv_param['stride']
     pad = conv_param['pad']
 
-    x_pad = np.pad(x, pad, 'constant', constant_values = 0)
+    x_pad = np.pad(x, ((0, 0), (0, 0), (pad, pad), (pad, pad)), 'constant', constant_values = 0)
 
+    N, _, H, W = x.shape
+    F, _, HH, WW = w.shape
 
+    H_out = (int)(1 + (H + 2 * pad - HH) / stride)
+    W_out = (int)(1 + (W + 2 * pad - WW) / stride)
+
+    out = np.empty((N, F, H_out, W_out))
+    w_reshaped = w.reshape(F, -1)
+
+    for i in range(H_out):
+      for j in range(W_out):
+        block = x_pad[:, :,
+                      i * stride : i * stride + HH,
+                      j * stride : j * stride + WW]
+        block_reshaped = block.reshape(N, -1)
+
+        out[:,:,i,j] = block_reshaped.dot(w_reshaped.T) + b
 
     ###########################################################################
     #                             END OF YOUR CODE                            #
@@ -518,11 +534,43 @@ def conv_backward_naive(dout, cache):
     - dw: Gradient with respect to w
     - db: Gradient with respect to b
     """
-    dx, dw, db = None, None, None
     ###########################################################################
     # TODO: Implement the convolutional backward pass.                        #
     ###########################################################################
-    pass
+    x, w, b, conv_param = cache
+
+    s = conv_param['stride']
+    pad = conv_param['pad']
+
+    x_pad = np.pad(x, ((0, 0), (0, 0), (pad, pad), (pad, pad)), 'constant', constant_values = 0)
+
+    N, C, H, W = x.shape
+    F, _, HH, WW = w.shape
+    _, _, H_out, W_out = dout.shape
+
+    dx_pad = np.zeros((N, C, H + 2 * pad, W + 2 * pad))
+    dw = np.zeros(w.shape)
+
+    w_reshaped = w.reshape(F, -1)
+
+    for i in range(H_out):
+      for j in range(W_out):
+        dout_block = dout[:,:,i,j]
+        dx_pad_block = dout_block.dot(w_reshaped)
+        dx_pad[:, :,
+               i * s : i * s + HH,
+               j * s : j * s + WW] += dx_pad_block.reshape(N, C, HH, WW)
+
+        block = x_pad[:, :,
+                      i * s : i * s + HH,
+                      j * s : j * s + WW]
+        block_reshaped = block.reshape(N, -1)
+
+        dw += dout_block.T.dot(block_reshaped).reshape(w.shape)
+
+    dx = dx_pad[:, :, pad : - pad, pad : - pad]
+    db = np.sum(np.sum(np.sum(dout, axis = 0), axis = 1), axis = 1)
+
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
