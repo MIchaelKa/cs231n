@@ -600,11 +600,37 @@ def max_pool_forward_naive(x, pool_param):
     ###########################################################################
     # TODO: Implement the max-pooling forward pass                            #
     ###########################################################################
-    pass
+    pool_height = pool_param['pool_height']
+    pool_width = pool_param['pool_width']
+    stride = pool_param['stride']
+
+    N, C, H, W = x.shape
+
+    H_out = (int)(1 + (H - pool_height) / stride)
+    W_out = (int)(1 + (W - pool_width) / stride)
+
+    out = np.empty((N, C, H_out, W_out))
+    max_idx = np.empty((N, C, H_out, W_out), dtype=int)
+
+    for i in range(H_out):
+      for j in range(W_out):
+        block = x[:, :,
+                  i * stride : i * stride + pool_height,
+                  j * stride : j * stride + pool_width]
+        
+        block_reshaped = block.reshape(N, C, -1)
+
+        block_max_idx = block_reshaped.argmax(axis = 2)
+
+        max_idx[:,:,i,j] = block_max_idx
+        #out[:,:,i,j] = block_reshaped[block_max_idx]
+        out[:,:,i,j] =  block_reshaped.max(axis = 2)
+        
+
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
-    cache = (x, pool_param)
+    cache = (x, pool_param, max_idx)
     return out, cache
 
 
@@ -619,11 +645,32 @@ def max_pool_backward_naive(dout, cache):
     Returns:
     - dx: Gradient with respect to x
     """
-    dx = None
     ###########################################################################
     # TODO: Implement the max-pooling backward pass                           #
     ###########################################################################
-    pass
+    x, pool_param, max_idx = cache
+
+    pool_height = pool_param['pool_height']
+    pool_width = pool_param['pool_width']
+    s = pool_param['stride']
+ 
+    dx = np.zeros(x.shape)
+
+    N, C, H_out, W_out = dout.shape
+
+    for i in range(H_out):
+      for j in range(W_out):
+
+        dx_block = np.zeros((N * C, pool_height * pool_width))
+        dout_block = dout[:,:,i,j]
+        idx = max_idx[:,:,i,j]
+
+        dx_block[np.arange(N * C), idx.reshape(-1)] = dout_block.reshape(-1)
+
+        dx[:, :,
+           i * s : i * s + pool_height,
+           j * s : j * s + pool_width] = dx_block.reshape(N,C,pool_height, pool_width)
+
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
